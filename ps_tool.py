@@ -47,8 +47,9 @@ class ProcessLogger:
                 self.data['cpu_percent'].append(self.p.cpu_percent())
                 self.data['memory_percent'].append(self.p.memory_percent())
                 self.data['memory_GB'].append(1.0 * self.p.memory_info().rss / self.GB)
-                self.printLastLog()
                 self.n_data += 1
+
+                self.printLastLog()
             except psutil.NoSuchProcess:
                 self.terminated = True
                 print('[{}] process terminated'.format(self.proc_name))

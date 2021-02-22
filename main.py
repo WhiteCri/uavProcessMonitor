@@ -6,8 +6,13 @@ import os
 import threading
 import time
 import proc_names
-PROCESS_UPDATE_PERIOD = 1 # second
+import signal
+import sys
 
+TW_EXIT_CODE = 97
+PROCESS_UPDATE_PERIOD = 1 # second
+sigint_captured = False
+flush_done = False
 
 class ProcessMonitor:
     def __init__(self, exe_names):
@@ -44,6 +49,9 @@ class ProcessMonitor:
         self.gen_dir()
 
         for p_info in self.p_infos:
+            terminated = p_info.found and not p_info.terminated
+            if not terminated : # process not found
+                continue
             if not p_info.csv_saved:
                 filename = p_info.proc_name + '.csv'
                 with open(self.path + '/' + filename, 'w') as f:
@@ -59,12 +67,27 @@ class ProcessMonitor:
         self.gen_dir()
         pass
 
+
+def sigint_handler(sig, frame):
+    global sigint_captured
+    sigint_captured = True
+
+    global flush_done
+    while not flush_done:
+        time.sleep(0.01) # 10ms
+
+    print('flush done')
+    sys.exit(TW_EXIT_CODE)
+
+
 def save_process_info():
     global process_monitor
+    global sigint_captured
+
     last_time = time.time()
 
     # update proc info
-    while True:
+    while not sigint_captured:
         dt = (time.time() - last_time)
         if dt >= PROCESS_UPDATE_PERIOD:
             # update processes
@@ -82,16 +105,25 @@ def save_process_info():
     # save as plot
     print('save as plot...')
 
+    global flush_done
+    flush_done = True
+
 
 if __name__=='__main__':
     process_monitor = ProcessMonitor(proc_names.exe_names)
 
-    # append cpu and memory usage according to the cycle
+    # set sigint handler for ctrl+C
+    signal.signal(signal.SIGINT, sigint_handler)
+
+    # saving thread start
     thr = threading.Thread(target=save_process_info)
     thr.daemon = True
     thr.start()
     thr.join()
 
+    # I maintained this software architecture for future use
+    while True:
+        time.sleep(1)
     '''
     while True:
         time.sleep(1)
