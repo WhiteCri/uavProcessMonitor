@@ -9,6 +9,8 @@ import time
 import proc_names
 import signal
 import sys
+import argparse
+import matplotlib.pyplot as plt
 
 TW_EXIT_CODE = 97
 PROCESS_UPDATE_PERIOD = 0.2 # second
@@ -16,8 +18,9 @@ sigint_captured = False
 flush_done = False
 
 class ProcessMonitor:
-    def __init__(self, proc_names):
-        self.p_infos = [ps_tool.ProcessLogger(proc_name) for proc_name in proc_names]
+    def __init__(self, names, dir_name=None):
+        self.p_infos = [ps_tool.ProcessLogger(proc_name) for proc_name in names]
+        self.dir_name = 'proc_info' if dir_name is None else dir_name
 
     def track_process(self, pid):
         self.p_infos.append(ProcessMonitor.ProcessInfo(pid))
@@ -43,8 +46,8 @@ class ProcessMonitor:
         else:
             return True
 
-    def gen_dir(self, dir_name='proc_info'):
-        self.path = os.path.join(os.getcwd(), dir_name)
+    def gen_dir(self):
+        self.path = os.path.join(os.getcwd(), self.dir_name)
         if not os.path.isdir(self.path):
             os.mkdir(self.path)
 
@@ -116,7 +119,12 @@ def save_process_info():
     sys.exit(TW_EXIT_CODE)
 
 if __name__=='__main__':
-    process_monitor = ProcessMonitor(proc_names.exe_names)
+    parser = argparse.ArgumentParser(description='Simple Process cpu & memory tracker')
+    parser.add_argument('--dir-name', type=str,
+                        help='name of result folder')
+
+    args = parser.parse_args()
+    process_monitor = ProcessMonitor(proc_names.exe_names, args.dir_name)
 
     # set sigint handler for ctrl+C
     signal.signal(signal.SIGINT, sigint_handler)
