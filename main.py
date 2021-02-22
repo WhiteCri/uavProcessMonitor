@@ -56,12 +56,13 @@ class ProcessMonitor:
         self.gen_dir()
 
         for p_info in self.p_infos:
-            if not p_info.server:
-                terminated = p_info.found and p_info.terminated
-                if not terminated: # process not found
+            if p_info.proc_name is not 'server':
+                if not p_info.found:
                     continue
+
             if not p_info.csv_saved:
                 filename = p_info.proc_name + '.csv'
+                print('saving {}...'.format(filename))
                 with open(self.path + '/' + filename, 'w') as f:
                     f.write('timestamp(period={}),cpu(%),memory(GB),memory(%)\n'.format(PROCESS_UPDATE_PERIOD))
                     for i in range(p_info.n_data):
@@ -84,7 +85,7 @@ def sigint_handler(sig, frame):
     while not flush_done:
         time.sleep(0.01) # 10ms
 
-    print('flush done')
+    print('flush done detected in sigint_handler')
     sys.exit(TW_EXIT_CODE)
 
 
@@ -107,7 +108,6 @@ def save_process_info():
             time.sleep(1/1000.0) #1ms
 
     # save as csv
-    print('save csv...')
     process_monitor.save_csv()
 
     # save as plot
