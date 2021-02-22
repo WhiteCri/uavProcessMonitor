@@ -1,5 +1,6 @@
 ## This program should run with root previlege, depending on your cmd
 ## this program uses memory with linear increasing speed.
+## some of tip datas are skipped because of poor synchronization, but i'm lazy to fix that..
 
 import ps_tool
 import os
@@ -10,31 +11,34 @@ import signal
 import sys
 
 TW_EXIT_CODE = 97
-PROCESS_UPDATE_PERIOD = 1 # second
+PROCESS_UPDATE_PERIOD = 0.2 # second
 sigint_captured = False
 flush_done = False
 
 class ProcessMonitor:
-    def __init__(self, exe_names):
-        self.p_infos = [ps_tool.ProcessLogger(exe_name) for exe_name in exe_names]
+    def __init__(self, proc_names):
+        self.p_infos = [ps_tool.ProcessLogger(proc_name) for proc_name in proc_names]
 
     def track_process(self, pid):
         self.p_infos.append(ProcessMonitor.ProcessInfo(pid))
 
     def update(self):
+        '''
+        :return: if every process terminated except server
+        '''
         n_terminated = 0
         for p_info in self.p_infos:
             if p_info.terminated:
                 n_terminated += 1
             elif p_info.found:
-                p_info.logCpuMemory()
+                p_info.log_cpu_memory()
             else: # not found
-                pid = p_info.searchProc()
+                pid = p_info.search_proc()
                 if pid != -1:
-                    p_info.doInit(pid)
+                    p_info.do_init(pid)
                 else :
                     print('not found {}'.format(p_info.proc_name))
-        if n_terminated == len(self.p_infos):
+        if n_terminated == len(self.p_infos) - 1:
             return False
         else:
             return True
@@ -49,9 +53,10 @@ class ProcessMonitor:
         self.gen_dir()
 
         for p_info in self.p_infos:
-            terminated = p_info.found and not p_info.terminated
-            if not terminated : # process not found
-                continue
+            if not p_info.server:
+                terminated = p_info.found and p_info.terminated
+                if not terminated: # process not found
+                    continue
             if not p_info.csv_saved:
                 filename = p_info.proc_name + '.csv'
                 with open(self.path + '/' + filename, 'w') as f:
@@ -99,15 +104,16 @@ def save_process_info():
             time.sleep(1/1000.0) #1ms
 
     # save as csv
-    print('save as csv...')
+    print('save csv...')
     process_monitor.save_csv()
 
     # save as plot
-    print('save as plot...')
+    print('save plot...')
 
     global flush_done
     flush_done = True
 
+    sys.exit(TW_EXIT_CODE)
 
 if __name__=='__main__':
     process_monitor = ProcessMonitor(proc_names.exe_names)
@@ -119,11 +125,12 @@ if __name__=='__main__':
     thr = threading.Thread(target=save_process_info)
     thr.daemon = True
     thr.start()
-    thr.join()
 
     # I maintained this software architecture for future use
     while True:
         time.sleep(1)
+        if flush_done:
+            sys.exit(TW_EXIT_CODE)
     '''
     while True:
         time.sleep(1)
