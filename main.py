@@ -2,6 +2,7 @@
 ## this program uses memory with linear increasing speed.
 ## some of tip datas are skipped because of poor synchronization, but i'm lazy to fix that..
 
+import psutil
 import ps_tool
 import os
 import threading
@@ -13,7 +14,7 @@ import argparse
 import matplotlib.pyplot as plt
 
 TW_EXIT_CODE = 97
-PROCESS_UPDATE_PERIOD = 0.2 # second
+PROCESS_UPDATE_PERIOD = 0.5 # second
 sigint_captured = False
 flush_done = False
 
@@ -72,10 +73,127 @@ class ProcessMonitor:
                                str(p_info.data['memory_percent'][i]) + '\n'
                         f.write(line)
 
-    def save_box_and_whisker_plot(self):
+    def save_plots(self):
         self.gen_dir()
-        pass
+        # I used not collected data in variable but csv data,
+        # to make this function separate from others
 
+        csv_names = [p_info.proc_name for p_info in self.p_infos]
+        data = {csv_name: {'stamp': [], 'cpu_percent': [], 'memory_GB': [], 'memory_percent': []}
+                for csv_name in csv_names}
+        target_dir = os.path.join(os.getcwd(), self.dir_name) + '/'
+        for csv_name in csv_names:
+            target_file_path = target_dir + csv_name + '.csv'
+            with open(target_file_path, 'r') as f:
+                f.readline()
+                data_csv = f.readlines()
+                # 0 : stamp
+                # 1 : cpu_percent
+                # 2 : memory_GB
+                # 3 : memory_percent
+                data[csv_name]['stamp']             = [float(l.rstrip('\n').split(',')[0]) for l in data_csv]
+                data[csv_name]['cpu_percent']       = [float(l.rstrip('\n').split(',')[1]) for l in data_csv]
+                data[csv_name]['memory_GB']         = [float(l.rstrip('\n').split(',')[2]) for l in data_csv]
+                data[csv_name]['memory_percent']    = [float(l.rstrip('\n').split(',')[3]) for l in data_csv]
+
+        cpu_usage_str = 'Cpu Usage % (with {} cores)'.format(psutil.cpu_count())
+        memory_usage_gb_str = 'Memory Usage GB'
+        memory_usage_percent_str = 'Memory Usage % (with {} GB memory)'\
+            .format(int(1.0*psutil.virtual_memory().total / 1024**3))
+
+        # save box_and_whisker plot
+        print('** note that box_and_whisker_plot ignores some outliers(fliers) **')
+        print('draw cpu usage % box_and_whisker plot...')
+        # plt.boxplot([data[csv_name]['cpu_percent'] for csv_name in csv_names], whis=50) # not detect outlier
+        plt.boxplot([data[csv_name]['cpu_percent'] for csv_name in csv_names],
+                    labels=csv_names, showfliers=False) # not show outlier
+        plt.ylabel(cpu_usage_str)
+        plt.xlabel('')
+        plt.savefig(target_dir + 'Cpu_Usage_box_and_whiskers.png')
+
+        plt.clf()
+        print('draw memory usage GB box_and_whisker plot...')
+        plt.boxplot([data[csv_name]['memory_GB'] for csv_name in csv_names],
+                    labels=csv_names, showfliers=False)  # not show outlier
+        plt.ylabel(memory_usage_gb_str)
+        plt.savefig(target_dir + 'Memory_Usage_GB_box_and_whiskers.png')
+
+        plt.clf()
+        print('draw memory usage % box_and_whisker plot...')
+        plt.boxplot([data[csv_name]['memory_percent'] for csv_name in csv_names],
+                    labels=csv_names, showfliers=False)  # not show outlier
+        plt.ylabel(memory_usage_percent_str)
+        plt.savefig(target_dir + 'Memory_Usage_percent_box_and_whiskers.png')
+
+        # save xy_plot. x is stamp, y is each data
+        for csv_name in csv_names:
+            stamp_begin_with_0 = [stamp - data[csv_name]['stamp'][0] for stamp in data[csv_name]['stamp']]
+
+            print('draw {} cpu usage...'.format(csv_name))
+            plt.clf()
+            plt.plot(stamp_begin_with_0, data[csv_name]['cpu_percent'])
+            plt.ylabel(cpu_usage_str)
+            plt.xlabel('seconds')
+            plt.savefig(target_dir + '{}_Cpu_Usage.png'.format(csv_name))
+
+            print('draw {} memory usage GB...'.format(csv_name))
+            plt.clf()
+            plt.plot(stamp_begin_with_0, data[csv_name]['memory_GB'])
+            plt.ylabel(memory_usage_gb_str)
+            plt.xlabel('seconds')
+            plt.savefig(target_dir + '{}_Memory_Usage_GB.png'.format(csv_name))
+
+            print('draw {} memory usage %...'.format(csv_name))
+            plt.clf()
+            plt.plot(stamp_begin_with_0, data[csv_name]['memory_percent'])
+            plt.ylabel(memory_usage_percent_str)
+            plt.xlabel('seconds')
+            plt.savefig(target_dir + '{}_Memory_Usage_percent.png'.format(csv_name))
+
+        ## plot everything in one-shot
+        # calc stamp start with server time
+        server_start_time = data['server']['stamp'][0]
+
+        # plot cpu usages
+        print('draw every_process cpu usage...'.format(csv_name))
+        plt.clf()
+        for csv_name in csv_names:
+            stamp_begin_with_server_0 = [stamp - server_start_time for stamp in data[csv_name]['stamp']]
+            cpu_usages = [cpu_percent for cpu_percent in data[csv_name]['cpu_percent']]
+            plt.plot(stamp_begin_with_server_0, cpu_usages, label=csv_name)
+        plt.xlabel('seconds')
+        plt.ylabel(cpu_usage_str)
+        plt.legend(loc='upper right')
+        plt.savefig(target_dir + 'Cpu_Usage.png')
+
+        # plot memory usages in GB
+        print('draw every_process memory usage in GB...'.format(csv_name))
+        plt.clf()
+        for csv_name in csv_names:
+            stamp_begin_with_server_0 = [stamp - server_start_time for stamp in data[csv_name]['stamp']]
+            memory_gbs = [memory_gb for memory_gb in data[csv_name]['memory_GB']]
+            plt.plot(stamp_begin_with_server_0, memory_gbs, label=csv_name)
+        plt.xlabel('seconds')
+        plt.ylabel(memory_usage_gb_str)
+        plt.legend(loc='upper right')
+        plt.savefig(target_dir + 'Memory_Usage_GB.png')
+
+        # plot memory usages in GB
+        print('draw every_process memory usage in percent...'.format(csv_name))
+        plt.clf()
+        for csv_name in csv_names:
+            stamp_begin_with_server_0 = [stamp - server_start_time for stamp in data[csv_name]['stamp']]
+            memory_percents = [memory_percent for memory_percent in data[csv_name]['memory_percent']]
+            plt.plot(stamp_begin_with_server_0, memory_percents, label=csv_name)
+        plt.xlabel('seconds')
+        plt.ylabel(memory_usage_percent_str)
+        plt.legend(loc='upper right')
+        plt.savefig(target_dir + 'Memory_Usage_percent.png')
+
+        sys.exit(TW_EXIT_CODE)
+
+
+#sys.exit(TW_EXIT_CODE)
 
 def sigint_handler(sig, frame):
     global sigint_captured
@@ -111,7 +229,7 @@ def save_process_info():
     process_monitor.save_csv()
 
     # save as plot
-    print('save plot...')
+    process_monitor.save_plots()
 
     global flush_done
     flush_done = True
@@ -122,8 +240,21 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Simple Process cpu & memory tracker')
     parser.add_argument('--dir-name', type=str,
                         help='name of result folder')
-
+    parser.add_argument('--plot-only', type=bool,
+                        help='if you only want to plot with csv, set this to True')
+    parser.add_argument('--plot-csvdir', type=str,
+                        help='name of csv-saved folder')
     args = parser.parse_args()
+
+    if args.plot_only and args.plot_csvdir is None:
+        print('you must set --plot-csvdir when you use plot-only')
+        sys.exit(TW_EXIT_CODE)
+
+    ## plot-only handling
+    if args.plot_only:
+        process_monitor = ProcessMonitor(proc_names.exe_names, args.plot_csvdir)
+        process_monitor.save_plots()
+
     process_monitor = ProcessMonitor(proc_names.exe_names, args.dir_name)
 
     # set sigint handler for ctrl+C
