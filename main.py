@@ -152,15 +152,17 @@ class ProcessMonitor:
 
         ## plot everything in one-shot
         # calc stamp start with server time
-        server_start_time = data['server']['stamp'][0]
-
+        first_start_time = data[csv_names[0]]['stamp'][0]
+        first_end_time = data[csv_names[0]]['stamp'][-1]
         # plot cpu usages
         print('draw every_process cpu usage...'.format(csv_name))
         plt.clf()
         for csv_name in csv_names:
-            stamp_begin_with_server_0 = [stamp - server_start_time for stamp in data[csv_name]['stamp']]
+            stamp_begin_with_first_0 = [stamp - first_start_time for stamp in data[csv_name]['stamp']
+                                        if first_start_time <= stamp <= first_end_time]
             cpu_usages = [cpu_percent for cpu_percent in data[csv_name]['cpu_percent']]
-            plt.plot(stamp_begin_with_server_0, cpu_usages, label=csv_name)
+            cpu_usages = cpu_usages[len(cpu_usages) - len(stamp_begin_with_first_0):] # match the length
+            plt.plot(stamp_begin_with_first_0, cpu_usages, label=csv_name)
         plt.xlabel('seconds')
         plt.ylabel(cpu_usage_str)
         plt.legend(loc='upper right')
@@ -170,9 +172,11 @@ class ProcessMonitor:
         print('draw every_process memory usage in GB...'.format(csv_name))
         plt.clf()
         for csv_name in csv_names:
-            stamp_begin_with_server_0 = [stamp - server_start_time for stamp in data[csv_name]['stamp']]
+            stamp_begin_with_first_0 = [stamp - first_start_time for stamp in data[csv_name]['stamp']
+                                        if first_start_time <= stamp <= first_end_time]
             memory_gbs = [memory_gb for memory_gb in data[csv_name]['memory_GB']]
-            plt.plot(stamp_begin_with_server_0, memory_gbs, label=csv_name)
+            memory_gbs = memory_gbs[len(memory_gbs) - len(stamp_begin_with_first_0):]
+            plt.plot(stamp_begin_with_first_0, memory_gbs, label=csv_name)
         plt.xlabel('seconds')
         plt.ylabel(memory_usage_gb_str)
         plt.legend(loc='upper right')
@@ -182,9 +186,11 @@ class ProcessMonitor:
         print('draw every_process memory usage in percent...'.format(csv_name))
         plt.clf()
         for csv_name in csv_names:
-            stamp_begin_with_server_0 = [stamp - server_start_time for stamp in data[csv_name]['stamp']]
+            stamp_begin_with_first_0 = [stamp - first_start_time for stamp in data[csv_name]['stamp']
+                                        if first_start_time <= stamp <= first_end_time]
             memory_percents = [memory_percent for memory_percent in data[csv_name]['memory_percent']]
-            plt.plot(stamp_begin_with_server_0, memory_percents, label=csv_name)
+            memory_percents = memory_percents[len(memory_percents) - len(stamp_begin_with_first_0):]
+            plt.plot(stamp_begin_with_first_0, memory_percents, label=csv_name)
         plt.xlabel('seconds')
         plt.ylabel(memory_usage_percent_str)
         plt.legend(loc='upper right')
