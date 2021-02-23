@@ -52,6 +52,11 @@ class ProcessMonitor:
         if not os.path.isdir(self.path):
             os.mkdir(self.path)
 
+    def save_ok(self):
+        n_proc = len(self.p_infos)
+        cnt = len([dummy.found for dummy in self.p_infos if dummy.found])
+        return cnt == n_proc
+
     def save_csv(self):
         # gen directory
         self.gen_dir()
@@ -196,7 +201,6 @@ class ProcessMonitor:
         plt.legend(loc='upper right')
         plt.savefig(target_dir + 'Memory_Usage_percent.png')
 
-        sys.exit(TW_EXIT_CODE)
 
 
 #sys.exit(TW_EXIT_CODE)
@@ -231,11 +235,9 @@ def save_process_info():
         else:
             time.sleep(1/1000.0) #1ms
 
-    # save as csv
-    process_monitor.save_csv()
-
-    # save as plot
-    process_monitor.save_plots()
+    if process_monitor.save_ok():
+        process_monitor.save_csv()
+        process_monitor.save_plots()
 
     global flush_done
     flush_done = True
@@ -254,12 +256,13 @@ if __name__=='__main__':
 
     if args.plot_only and args.plot_csvdir is None:
         print('you must set --plot-csvdir when you use plot-only')
-        sys.exit(TW_EXIT_CODE)
+        sys.exit(-1)
 
     ## plot-only handling
     if args.plot_only:
         process_monitor = ProcessMonitor(proc_names.exe_names, args.plot_csvdir)
         process_monitor.save_plots()
+        sys.exit(TW_EXIT_CODE)
 
     process_monitor = ProcessMonitor(proc_names.exe_names, args.dir_name)
 
