@@ -202,20 +202,15 @@ class ProcessMonitor:
         plt.savefig(target_dir + 'Memory_Usage_percent.png')
 
 
-
-#sys.exit(TW_EXIT_CODE)
-
 def sigint_handler(sig, frame):
-    global sigint_captured
-    sigint_captured = True
+    global process_monitor
+    if process_monitor.save_ok():
+        process_monitor.save_csv()
+        process_monitor.save_plots()
+        print('flush done in sigint_handler')
 
-    global flush_done
-    while not flush_done:
-        time.sleep(0.01) # 10ms
-
-    print('flush done detected in sigint_handler')
+    print('terminate in sigint_handler...')
     sys.exit(TW_EXIT_CODE)
-
 
 def save_process_info():
     global process_monitor
@@ -224,7 +219,7 @@ def save_process_info():
     last_time = time.time()
 
     # update proc info
-    while not sigint_captured:
+    while True:
         dt = (time.time() - last_time)
         if dt >= PROCESS_UPDATE_PERIOD:
             # update processes
@@ -239,10 +234,7 @@ def save_process_info():
         process_monitor.save_csv()
         process_monitor.save_plots()
 
-    global flush_done
-    flush_done = True
-
-    sys.exit(TW_EXIT_CODE)
+    #sys.exit(TW_EXIT_CODE)
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Simple Process cpu & memory tracker')
@@ -263,12 +255,15 @@ if __name__=='__main__':
         process_monitor = ProcessMonitor(proc_names.exe_names, args.plot_csvdir)
         process_monitor.save_plots()
         sys.exit(TW_EXIT_CODE)
+        print('after TW_EXIT')
 
     process_monitor = ProcessMonitor(proc_names.exe_names, args.dir_name)
 
     # set sigint handler for ctrl+C
     signal.signal(signal.SIGINT, sigint_handler)
 
+    save_process_info()
+    sys.exit(TW_EXIT_CODE)
     # saving thread start
     thr = threading.Thread(target=save_process_info)
     thr.daemon = True

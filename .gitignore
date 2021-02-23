@@ -1,4 +1,5 @@
 .idea
+proc_info
 venv
 __pycache__
 *.pyc
