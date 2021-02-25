@@ -139,6 +139,12 @@ class ProcessMonitor:
             plt.plot(stamp_begin_with_0, data[csv_name]['cpu_percent'])
             plt.ylabel(cpu_usage_str)
             plt.xlabel('seconds')
+            plt.xlim(stamp_begin_with_0[0], stamp_begin_with_0[-1])
+            ylim = 100
+            max_y = max(data[csv_name]['cpu_percent'])
+            while ylim < max_y:
+                ylim += 100
+            plt.ylim(0, ylim)
             plt.savefig(target_dir + '{}_Cpu_Usage.png'.format(csv_name))
 
             print('draw {} memory usage GB...'.format(csv_name))
@@ -170,7 +176,16 @@ class ProcessMonitor:
             plt.plot(stamp_begin_with_first_0, cpu_usages, label=csv_name)
         plt.xlabel('seconds')
         plt.ylabel(cpu_usage_str)
-        plt.legend(loc='upper right')
+        plt.xlim(stamp_begin_with_first_0[0], stamp_begin_with_first_0[-1])
+        ylim = 100
+        max_y = max(data[csv_names[0]]['cpu_percent'])
+        for csv_name in csv_names:
+            max_cur = max(data[csv_name]['cpu_percent'])
+            max_y = max_cur if max_y < max_cur else max_y
+        while ylim < max_y:
+            ylim += 100
+        plt.ylim(0, ylim)
+        #plt.legend(loc='upper right')
         plt.savefig(target_dir + 'Cpu_Usage.png')
 
         # plot memory usages in GB
