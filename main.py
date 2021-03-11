@@ -12,6 +12,7 @@ import signal
 import sys
 import argparse
 import matplotlib.pyplot as plt
+import matplotlib
 
 TW_EXIT_CODE = 97
 PROCESS_UPDATE_PERIOD = 0.5 # second
@@ -185,7 +186,8 @@ class ProcessMonitor:
         while ylim < max_y:
             ylim += 100
         plt.ylim(0, ylim)
-        #plt.legend(loc='upper right')
+        #plt.legend()
+        plt.legend(title='title', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='xx-small')
         plt.savefig(target_dir + 'Cpu_Usage.png')
 
         # plot memory usages in GB
@@ -199,7 +201,11 @@ class ProcessMonitor:
             plt.plot(stamp_begin_with_first_0, memory_gbs, label=csv_name)
         plt.xlabel('seconds')
         plt.ylabel(memory_usage_gb_str)
-        plt.legend(loc='upper right')
+        plt.xlim(stamp_begin_with_first_0[0], stamp_begin_with_first_0[-1])
+        plt.ylim(ymin=0)
+        #ylim = 100
+        #plt.ylim(0, ylim)
+        plt.legend()
         plt.savefig(target_dir + 'Memory_Usage_GB.png')
 
         # plot memory usages in GB
@@ -213,8 +219,86 @@ class ProcessMonitor:
             plt.plot(stamp_begin_with_first_0, memory_percents, label=csv_name)
         plt.xlabel('seconds')
         plt.ylabel(memory_usage_percent_str)
-        plt.legend(loc='upper right')
+        plt.xlim(stamp_begin_with_first_0[0], stamp_begin_with_first_0[-1])
+        #ylim = 100
+        #plt.ylim(0, ylim)
+        plt.legend()
         plt.savefig(target_dir + 'Memory_Usage_percent.png')
+
+
+    def save_plots2(self):
+        ## plot everything in one-shot
+        csv_names = [p_info.proc_name for p_info in self.p_infos]
+        data = {csv_name: {'stamp': [], 'cpu_percent': [], 'memory_GB': [], 'memory_percent': []}
+                for csv_name in csv_names}
+        target_dir = os.path.join(os.getcwd(), self.dir_name) + '/'
+        for csv_name in csv_names:
+            target_file_path = target_dir + csv_name + '.csv'
+            with open(target_file_path, 'r') as f:
+                f.readline()
+                data_csv = f.readlines()
+                # 0 : stamp
+                # 1 : cpu_percent
+                # 2 : memory_GB
+                # 3 : memory_percent
+                data[csv_name]['stamp'] = [float(l.rstrip('\n').split(',')[0]) for l in data_csv]
+                data[csv_name]['cpu_percent'] = [float(l.rstrip('\n').split(',')[1]) for l in data_csv]
+                data[csv_name]['memory_GB'] = [float(l.rstrip('\n').split(',')[2]) for l in data_csv]
+                data[csv_name]['memory_percent'] = [float(l.rstrip('\n').split(',')[3]) for l in data_csv]
+
+        cpu_usage_str = 'Cpu Usage % (max {} %)'.format(psutil.cpu_count() * 100)
+        memory_usage_gb_str = 'Memory Usage GiB (max {} GiB)'.format(int(1.0*psutil.virtual_memory().total / 1024**3))
+
+        # calc stamp start with server time
+        first_start_time = data[csv_names[0]]['stamp'][0]
+        first_end_time = data[csv_names[0]]['stamp'][-1]
+
+        # set figure options
+        plt.rcParams["figure.figsize"] = (15.2, 8)
+        font = {#'family': 'normal',
+                # 'weight': 'bold',
+                'size': 20}
+        matplotlib.rc('font', **font)
+
+        fig, (ax1, ax2) = plt.subplots(1, 2)
+        # plot cpu usages
+        print('draw every_process cpu usage...'.format(csv_name))
+        for csv_name in csv_names:
+            stamp_begin_with_first_0 = [stamp - first_start_time for stamp in data[csv_name]['stamp']
+                                        if first_start_time <= stamp <= first_end_time]
+            cpu_usages = [cpu_percent for cpu_percent in data[csv_name]['cpu_percent']]
+            cpu_usages = cpu_usages[len(cpu_usages) - len(stamp_begin_with_first_0):]  # match the length
+            ax1.plot(stamp_begin_with_first_0, cpu_usages, label=csv_name)
+        ax1.set_xlabel('elapsed_time [seconds]')
+        ax1.set_ylabel(cpu_usage_str)
+        ax1.set_xlim(0, first_end_time - first_start_time)
+        ylim = 100
+        max_y = max(data[csv_names[0]]['cpu_percent'])
+        for csv_name in csv_names:
+            max_cur = max(data[csv_name]['cpu_percent'])
+            max_y = max_cur if max_y < max_cur else max_y
+        while ylim < max_y:
+            ylim += 100
+        ax1.set_ylim(0, ylim)
+
+        # plot memory usages in GB
+        print('draw every_process memory usage in GB...'.format(csv_name))
+
+        for csv_name in csv_names:
+            stamp_begin_with_first_0 = [stamp - first_start_time for stamp in data[csv_name]['stamp']
+                                        if first_start_time <= stamp <= first_end_time]
+            memory_gbs = [memory_gb for memory_gb in data[csv_name]['memory_GB']]
+            memory_gbs = memory_gbs[len(memory_gbs) - len(stamp_begin_with_first_0):]
+            ax2.plot(stamp_begin_with_first_0, memory_gbs, label=csv_name)
+        ax2.set_xlabel('elapsed_time [seconds]')
+        ax2.set_ylabel(memory_usage_gb_str)
+        ax2.set_xlim(0, first_end_time - first_start_time)
+        ax2.set_ylim(ymin=0)
+        handles, labels = ax1.get_legend_handles_labels()
+        fig.legend(handles, labels, loc='upper center', bbox_transform=(0, 1.05), ncol=len(csv_names), framealpha=1.0, edgecolor='black')
+        plt.savefig(target_dir + "oneshot.png")
+        #plt.show()
+        
 
 
 def sigint_handler(sig, frame):
@@ -252,6 +336,7 @@ def save_process_info():
     #sys.exit(TW_EXIT_CODE)
 
 if __name__=='__main__':
+
     parser = argparse.ArgumentParser(description='Simple Process cpu & memory tracker')
     parser.add_argument('--dir-name', type=str,
                         help='name of result folder')
@@ -268,7 +353,7 @@ if __name__=='__main__':
     ## plot-only handling
     if args.plot_only:
         process_monitor = ProcessMonitor(proc_names.exe_names, args.plot_csvdir)
-        process_monitor.save_plots()
+        process_monitor.save_plots2()
         sys.exit(TW_EXIT_CODE)
         print('after TW_EXIT')
 
