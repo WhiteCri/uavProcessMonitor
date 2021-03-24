@@ -246,8 +246,8 @@ class ProcessMonitor:
                 data[csv_name]['memory_GB'] = [float(l.rstrip('\n').split(',')[2]) for l in data_csv]
                 data[csv_name]['memory_percent'] = [float(l.rstrip('\n').split(',')[3]) for l in data_csv]
 
-        cpu_usage_str = 'Cpu Usage % (max {} %)'.format(psutil.cpu_count() * 100)
-        memory_usage_gb_str = 'Memory Usage GiB (max {} GiB)'.format(int(1.0*psutil.virtual_memory().total / 1024**3))
+        cpu_usage_str = 'Cpu Usage % (max {} %)'.format(600)#format(psutil.cpu_count() * 100)
+        memory_usage_gb_str = 'Memory Usage GiB (max {} GiB)'.format(8)#int(1.0*psutil.virtual_memory().total / 1024**3))
 
         # calc stamp start with server time
         first_start_time = data[csv_names[0]]['stamp'][0]
@@ -280,6 +280,7 @@ class ProcessMonitor:
         while ylim < max_y:
             ylim += 100
         ax1.set_ylim(0, ylim)
+        ax1.set_ylim(0, 600)
 
         # plot memory usages in GB
         print('draw every_process memory usage in GB...'.format(csv_name))
@@ -294,6 +295,7 @@ class ProcessMonitor:
         ax2.set_ylabel(memory_usage_gb_str)
         ax2.set_xlim(0, first_end_time - first_start_time)
         ax2.set_ylim(ymin=0)
+        ax2.set_ylim(0, 8)
         handles, labels = ax1.get_legend_handles_labels()
         fig.legend(handles, labels, loc='upper center', bbox_transform=(0, 1.05), ncol=len(csv_names), framealpha=1.0, edgecolor='black')
         plt.savefig(target_dir + "oneshot.png")
