@@ -20,9 +20,10 @@ sigint_captured = False
 flush_done = False
 
 class ProcessMonitor:
-    def __init__(self, names, dir_name=None):
+    def __init__(self, names, dir_name=None, monitor_server_only=False):
         self.p_infos = [ps_tool.ProcessLogger(proc_name) for proc_name in names]
         self.dir_name = 'proc_info' if dir_name is None else dir_name
+        self.monitor_server_only = monitor_server_only
 
     def track_process(self, pid):
         self.p_infos.append(ProcessMonitor.ProcessInfo(pid))
@@ -44,9 +45,12 @@ class ProcessMonitor:
                 else :
                     print('not found {}'.format(p_info.proc_name))
         if n_terminated == len(self.p_infos) - 1:
-            return False
+            if self.monitor_server_only:
+                return False
+            else:
+                return True
         else:
-            return True
+            return False
 
     def gen_dir(self):
         self.path = os.path.join(os.getcwd(), self.dir_name)
@@ -326,7 +330,7 @@ def save_process_info():
             # update processes
             last_time = time.time()
             terminated_all = process_monitor.update()
-            if not terminated_all:
+            if terminated_all:
                 break
         else:
             time.sleep(1/1000.0) #1ms
@@ -342,10 +346,12 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Simple Process cpu & memory tracker')
     parser.add_argument('--dir-name', type=str,
                         help='name of result folder')
-    parser.add_argument('--plot-only', type=bool,
+    parser.add_argument('--plot-only', #type=bool,
                         help='if you only want to plot with csv, set this to True')
     parser.add_argument('--plot-csvdir', type=str,
                         help='name of csv-saved folder')
+    parser.add_argument('--server-only', type=str,
+                        help='flag if monitor only server or not')
     args = parser.parse_args()
 
     if args.plot_only and args.plot_csvdir is None:
@@ -359,7 +365,9 @@ if __name__=='__main__':
         sys.exit(TW_EXIT_CODE)
         print('after TW_EXIT')
 
-    process_monitor = ProcessMonitor(proc_names.exe_names, args.dir_name)
+    monitor_server_only = True if args.server_only == 'True' else False
+    print('monitor_server_only', monitor_server_only, args.server_only, type(args.server_only))
+    process_monitor = ProcessMonitor(proc_names.exe_names, args.dir_name, monitor_server_only=monitor_server_only)
 
     # set sigint handler for ctrl+C
     signal.signal(signal.SIGINT, sigint_handler)
