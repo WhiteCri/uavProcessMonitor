@@ -11,9 +11,7 @@ import proc_names
 import signal
 import sys
 import argparse
-import matplotlib.pyplot as plt
-import matplotlib
-import gpu_tool
+#import gpu_tool
 
 TW_EXIT_CODE = 97
 PROCESS_UPDATE_PERIOD = 0.5 # second
@@ -52,6 +50,8 @@ class ProcessMonitor:
             p.save_csv(self.path)
 
     def save_plots_from_csv(self):
+        import matplotlib
+        from matplotlib import pyplot as plt
         csv_names = [p_info.proc_name for p_info in self.p_infos]
         data = {csv_name: {'stamp': [], 'cpu_percent': [], 'memory_GB': [], 'memory_percent': []}
                 for csv_name in csv_names}
@@ -272,7 +272,7 @@ def save_process_info():
             process_monitor.update()
 
             # not good place to put this code, but i'm lazy to make other thread...
-            gpu_tool.print_gpustat(show_header=False)
+            # gpu_tool.print_gpustat(show_header=False)
         else:
             time.sleep(1/1000.0) #1ms
 

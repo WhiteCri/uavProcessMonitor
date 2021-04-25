@@ -1,9 +1,7 @@
 exe_names = [ #you can write node_name when you use ROS
  'server',
- 'slack',
- 'chrome',
- 'gnome-shell',
- #'move_base',
- #'slam_gmapping',
- # 'open_vins',
+ 'run_tkdnn', #
+ 'move_base',
+ 'slam_gmapping',
+ 'run_subscribe_msckf', # open vins
 ]
