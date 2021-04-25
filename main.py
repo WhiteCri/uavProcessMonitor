@@ -13,6 +13,7 @@ import sys
 import argparse
 import matplotlib.pyplot as plt
 import matplotlib
+import gpu_tool
 
 TW_EXIT_CODE = 97
 PROCESS_UPDATE_PERIOD = 0.5 # second
@@ -269,6 +270,9 @@ def save_process_info():
             # update processes
             last_time = time.time()
             process_monitor.update()
+
+            # not good place to put this code, but i'm lazy to make other thread...
+            gpu_tool.print_gpustat(show_header=False)
         else:
             time.sleep(1/1000.0) #1ms
 
@@ -304,4 +308,3 @@ if __name__=='__main__':
     process_monitor = ProcessMonitor(proc_names.exe_names, args.dir_name, monitor_server_only=monitor_server_only)
 
     save_process_info()
-    print('hello')
