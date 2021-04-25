@@ -46,7 +46,7 @@ class ProcessLogger:
         try:
             pid_str = check_output(['pidof', self.proc_name])
         except CalledProcessError: # not found process
-            print(f'process [{self.proc_name}] not found')
+            print(f'[{self.proc_name}] not found')
             return -1
         pid_str_list = pid_str.decode('ascii').split(' ') # byte to string, slice by space
         pids = [int(pid) for pid in pid_str_list]
@@ -89,24 +89,24 @@ class ProcessLogger:
             return
         if not self.terminated:
             not_found = 0
-            try:
-                cpu = 0
-                mem_percent = 0
-                mem_abs = 0
-                for p in self.processes:
+            cpu = 0
+            mem_percent = 0
+            mem_abs = 0
+
+            for p in self.processes:
+                try:
                     cpu += p.cpu_percent()
                     mem_percent += p.memory_percent()
                     mem_abs += 1.0 * p.memory_info().rss / self.GB
+                except psutil.NoSuchProcess:
+                    not_found += 1
 
-                self.data['stamp'].append(time.time())
-                self.data['cpu_percent'].append(cpu)
-                self.data['memory_percent'].append(mem_percent)
-                self.data['memory_GB'].append(mem_abs)
-                self.n_data += 1
-
-                self.print_last_log()
-            except psutil.NoSuchProcess:
-                not_found += 1
+            self.data['stamp'].append(time.time())
+            self.data['cpu_percent'].append(cpu)
+            self.data['memory_percent'].append(mem_percent)
+            self.data['memory_GB'].append(mem_abs)
+            self.n_data += 1
+            self.print_last_log()
 
             if not_found == len(self.processes):
                 self.terminated = True
