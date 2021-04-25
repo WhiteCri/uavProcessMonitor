@@ -25,69 +25,32 @@ class ProcessMonitor:
         self.dir_name = 'proc_info' if dir_name is None else dir_name
         self.monitor_server_only = monitor_server_only
 
-    def track_process(self, pid):
-        self.p_infos.append(ProcessMonitor.ProcessInfo(pid))
+        ## generate directory
+        self.path = os.path.join(os.getcwd(), self.dir_name)
+        if self.path[-1] == '/': # remove last / if exists
+            self.path = self.path[-1]
+        if not os.path.isdir(self.path):
+            os.mkdir(self.path)
 
     def update(self):
         '''
         :return: if every process terminated except server
         '''
-        n_terminated = 0
         for p_info in self.p_infos:
-            if p_info.terminated:
-                n_terminated += 1
-            elif p_info.found:
+            if p_info.found: # log
                 p_info.log_cpu_memory()
-            else: # not found
-                pid = p_info.search_proc()
-                if pid != -1:
-                    p_info.do_init(pid)
-                else :
-                    print('not found {}'.format(p_info.proc_name))
-        if n_terminated == len(self.p_infos) - 1:
-            if self.monitor_server_only:
-                return False
-            else:
-                return True
-        else:
-            return False
+            else: # find process
+                p_info.do_init()
 
-    def gen_dir(self):
-        self.path = os.path.join(os.getcwd(), self.dir_name)
-        if not os.path.isdir(self.path):
-            os.mkdir(self.path)
+    def get_logged_processes(self):
+        re = [dummy for dummy in self.p_infos if dummy.found]
+        return re
 
-    def save_ok(self):
-        n_proc = len(self.p_infos)
-        cnt = len([dummy.found for dummy in self.p_infos if dummy.found])
-        return cnt == n_proc
+    def save_csv(self, p_infos):
+        for p in p_infos:
+            p.save_csv(self.path)
 
-    def save_csv(self):
-        # gen directory
-        self.gen_dir()
-
-        for p_info in self.p_infos:
-            if p_info.proc_name is not 'server':
-                if not p_info.found:
-                    continue
-
-            if not p_info.csv_saved:
-                filename = p_info.proc_name + '.csv'
-                print('saving {}...'.format(filename))
-                with open(self.path + '/' + filename, 'w') as f:
-                    f.write('timestamp(period={}),cpu(%),memory(GB),memory(%)\n'.format(PROCESS_UPDATE_PERIOD))
-                    for i in range(p_info.n_data):
-                        line = str(p_info.data['stamp'][i]) + ',' + \
-                               str(p_info.data['cpu_percent'][i]) + ',' + \
-                               str(p_info.data['memory_GB'][i]) + ',' + \
-                               str(p_info.data['memory_percent'][i]) + '\n'
-                        f.write(line)
-
-    def save_plots(self):
-        self.gen_dir()
-        # I used not collected data in variable but csv data,
-        # to make this function separate from others
-
+    def save_plots_from_csv(self):
         csv_names = [p_info.proc_name for p_info in self.p_infos]
         data = {csv_name: {'stamp': [], 'cpu_percent': [], 'memory_GB': [], 'memory_percent': []}
                 for csv_name in csv_names}
@@ -106,10 +69,11 @@ class ProcessMonitor:
                 data[csv_name]['memory_GB']         = [float(l.rstrip('\n').split(',')[2]) for l in data_csv]
                 data[csv_name]['memory_percent']    = [float(l.rstrip('\n').split(',')[3]) for l in data_csv]
 
-        cpu_usage_str = 'Cpu Usage % (with {} cores)'.format(psutil.cpu_count())
-        memory_usage_gb_str = 'Memory Usage GB'
-        memory_usage_percent_str = 'Memory Usage % (with {} GB memory)'\
-            .format(int(1.0*psutil.virtual_memory().total / 1024**3))
+        tot_mem_GiB = int(1.0*psutil.virtual_memory().total / 1024**3)
+        cpu_usage_str = f'Cpu Usage % (with {psutil.cpu_count()} cores)'
+        memory_usage_gb_str = f'Memory Usage GB (with {tot_mem_GiB} GB memory)'
+        memory_usage_percent_str = f'Memory Usage % (with {tot_mem_GiB} GB memory)'
+
 
         # save box_and_whisker plot
         print('** note that box_and_whisker_plot ignores some outliers(fliers) **')
@@ -157,6 +121,13 @@ class ProcessMonitor:
             plt.plot(stamp_begin_with_0, data[csv_name]['memory_GB'])
             plt.ylabel(memory_usage_gb_str)
             plt.xlabel('seconds')
+            plt.xlim(stamp_begin_with_0[0], stamp_begin_with_0[-1])
+            ylim = 1
+            max_y = max(data[csv_name]['memory_GB'])
+            while ylim < max_y:
+                ylim += 1
+            ylim += 1
+            plt.ylim(0, ylim)
             plt.savefig(target_dir + '{}_Memory_Usage_GB.png'.format(csv_name))
 
             print('draw {} memory usage %...'.format(csv_name))
@@ -164,6 +135,13 @@ class ProcessMonitor:
             plt.plot(stamp_begin_with_0, data[csv_name]['memory_percent'])
             plt.ylabel(memory_usage_percent_str)
             plt.xlabel('seconds')
+            plt.xlim(stamp_begin_with_0[0], stamp_begin_with_0[-1])
+            ylim = 1
+            max_y = max(data[csv_name]['memory_percent'])
+            while ylim < max_y:
+                ylim += 1
+            ylim += 1
+            plt.ylim(0, ylim)
             plt.savefig(target_dir + '{}_Memory_Usage_percent.png'.format(csv_name))
 
         ## plot everything in one-shot
@@ -190,8 +168,7 @@ class ProcessMonitor:
         while ylim < max_y:
             ylim += 100
         plt.ylim(0, ylim)
-        #plt.legend()
-        plt.legend(title='title', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='xx-small')
+        plt.legend()
         plt.savefig(target_dir + 'Cpu_Usage.png')
 
         # plot memory usages in GB
@@ -229,44 +206,16 @@ class ProcessMonitor:
         plt.legend()
         plt.savefig(target_dir + 'Memory_Usage_percent.png')
 
-
-    def save_plots2(self):
-        ## plot everything in one-shot
-        csv_names = [p_info.proc_name for p_info in self.p_infos]
-        data = {csv_name: {'stamp': [], 'cpu_percent': [], 'memory_GB': [], 'memory_percent': []}
-                for csv_name in csv_names}
-        target_dir = os.path.join(os.getcwd(), self.dir_name) + '/'
-        for csv_name in csv_names:
-            target_file_path = target_dir + csv_name + '.csv'
-            with open(target_file_path, 'r') as f:
-                f.readline()
-                data_csv = f.readlines()
-                # 0 : stamp
-                # 1 : cpu_percent
-                # 2 : memory_GB
-                # 3 : memory_percent
-                data[csv_name]['stamp'] = [float(l.rstrip('\n').split(',')[0]) for l in data_csv]
-                data[csv_name]['cpu_percent'] = [float(l.rstrip('\n').split(',')[1]) for l in data_csv]
-                data[csv_name]['memory_GB'] = [float(l.rstrip('\n').split(',')[2]) for l in data_csv]
-                data[csv_name]['memory_percent'] = [float(l.rstrip('\n').split(',')[3]) for l in data_csv]
-
-        cpu_usage_str = 'Cpu Usage % (max {} %)'.format(600)#format(psutil.cpu_count() * 100)
-        memory_usage_gb_str = 'Memory Usage GiB (max {} GiB)'.format(8)#int(1.0*psutil.virtual_memory().total / 1024**3))
-
-        # calc stamp start with server time
-        first_start_time = data[csv_names[0]]['stamp'][0]
-        first_end_time = data[csv_names[0]]['stamp'][-1]
-
         # set figure options
+        print('draw one-shot plot...')
         plt.rcParams["figure.figsize"] = (15.2, 8)
-        font = {#'family': 'normal',
-                # 'weight': 'bold',
-                'size': 20}
+        font = {  # 'family': 'normal',
+            # 'weight': 'bold',
+            'size': 20}
         matplotlib.rc('font', **font)
 
         fig, (ax1, ax2) = plt.subplots(1, 2)
         # plot cpu usages
-        print('draw every_process cpu usage...'.format(csv_name))
         for csv_name in csv_names:
             stamp_begin_with_first_0 = [stamp - first_start_time for stamp in data[csv_name]['stamp']
                                         if first_start_time <= stamp <= first_end_time]
@@ -284,11 +233,8 @@ class ProcessMonitor:
         while ylim < max_y:
             ylim += 100
         ax1.set_ylim(0, ylim)
-        ax1.set_ylim(0, 600)
 
         # plot memory usages in GB
-        print('draw every_process memory usage in GB...'.format(csv_name))
-
         for csv_name in csv_names:
             stamp_begin_with_first_0 = [stamp - first_start_time for stamp in data[csv_name]['stamp']
                                         if first_start_time <= stamp <= first_end_time]
@@ -299,28 +245,21 @@ class ProcessMonitor:
         ax2.set_ylabel(memory_usage_gb_str)
         ax2.set_xlim(0, first_end_time - first_start_time)
         ax2.set_ylim(ymin=0)
-        ax2.set_ylim(0, 8)
         handles, labels = ax1.get_legend_handles_labels()
-        fig.legend(handles, labels, loc='upper center', bbox_transform=(0, 1.05), ncol=len(csv_names), framealpha=1.0, edgecolor='black')
+        fig.legend(handles, labels, loc='upper center', bbox_transform=(0, 1.05), ncol=len(csv_names), framealpha=1.0,
+                   edgecolor='black')
         plt.savefig(target_dir + "oneshot.png")
-        #plt.show()
-        
-
 
 def sigint_handler(sig, frame):
     global process_monitor
-    if process_monitor.save_ok():
-        process_monitor.save_csv()
-        process_monitor.save_plots()
-        print('flush done in sigint_handler')
+    process_monitor.save_csv(process_monitor.get_logged_processes())
+    print('flush done in sigint_handler')
 
     print('terminate in sigint_handler...')
     sys.exit(TW_EXIT_CODE)
 
 def save_process_info():
     global process_monitor
-    global sigint_captured
-
     last_time = time.time()
 
     # update proc info
@@ -329,19 +268,14 @@ def save_process_info():
         if dt >= PROCESS_UPDATE_PERIOD:
             # update processes
             last_time = time.time()
-            terminated_all = process_monitor.update()
-            if terminated_all:
-                break
+            process_monitor.update()
         else:
             time.sleep(1/1000.0) #1ms
 
-    if process_monitor.save_ok():
-        process_monitor.save_csv()
-        process_monitor.save_plots()
-
-    #sys.exit(TW_EXIT_CODE)
-
 if __name__=='__main__':
+
+    # set sigint handler for ctrl+C
+    signal.signal(signal.SIGINT, sigint_handler)
 
     parser = argparse.ArgumentParser(description='Simple Process cpu & memory tracker')
     parser.add_argument('--dir-name', type=str,
@@ -354,39 +288,20 @@ if __name__=='__main__':
                         help='flag if monitor only server or not')
     args = parser.parse_args()
 
-    if args.plot_only and args.plot_csvdir is None:
-        print('you must set --plot-csvdir when you use plot-only')
-        sys.exit(-1)
+    plot_only = True if args.plot_only is not None and args.plot_only.lower() == 'true' else False
+    server_only = True if args.server_only is not None and args.server_only.lower() == 'true' else False
 
-    ## plot-only handling
     if args.plot_only:
-        process_monitor = ProcessMonitor(proc_names.exe_names, args.plot_csvdir)
-        process_monitor.save_plots2()
-        sys.exit(TW_EXIT_CODE)
-        print('after TW_EXIT')
+        if args.plot_csvdir is None:
+            print('you must set --plot-csvdir when you use plot-only')
+            sys.exit(-1)
+        else:
+            process_monitor = ProcessMonitor(proc_names.exe_names, args.plot_csvdir)
+            process_monitor.save_plots_from_csv()
+            sys.exit(TW_EXIT_CODE)
 
     monitor_server_only = True if args.server_only == 'True' else False
-    print('monitor_server_only', monitor_server_only, args.server_only, type(args.server_only))
     process_monitor = ProcessMonitor(proc_names.exe_names, args.dir_name, monitor_server_only=monitor_server_only)
 
-    # set sigint handler for ctrl+C
-    signal.signal(signal.SIGINT, sigint_handler)
-
     save_process_info()
-    sys.exit(TW_EXIT_CODE)
-    # saving thread start
-    thr = threading.Thread(target=save_process_info)
-    thr.daemon = True
-    thr.start()
-
-    # I maintained this software architecture for future use
-    while True:
-        time.sleep(1)
-        if flush_done:
-            sys.exit(TW_EXIT_CODE)
-    '''
-    while True:
-        time.sleep(1)
-        ## sig child...
-        ## exit handling...
-    '''
+    print('hello')
